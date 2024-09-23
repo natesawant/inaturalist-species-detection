@@ -1,3 +1,10 @@
+# Data
+train_mini/
+train_mini.tar.gz
+train_mini.json
+
+*/_tmp.pth
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
