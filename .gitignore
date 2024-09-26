@@ -17,6 +17,7 @@ val.tar.gz
 train.tar.gz
 train.tar.gz.*
 train.tar.gz.json
+train_filtered.zip
 
 */_tmp.pth
 
