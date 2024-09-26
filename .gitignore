@@ -2,6 +2,21 @@
 train_mini/
 train_mini.tar.gz
 train_mini.json
+train_mini.json.tar.gz
+models/
+test_data/
+tmp/
+public_test.json
+public_test.json.tar.gz
+public_test.tar.gz
+train/
+train.json
+train.json.tar.gz
+val.json.tar.gz
+val.tar.gz
+train.tar.gz
+train.tar.gz.*
+train.tar.gz.json
 
 */_tmp.pth
 
