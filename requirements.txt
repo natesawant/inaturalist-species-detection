@@ -1,5 +1,6 @@
-torch
 boto3
-progress
-transformers
 ipykernel
+progress
+torch
+torchvision
+transformers
