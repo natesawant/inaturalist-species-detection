@@ -1,3 +1,5 @@
-tensorboard
-fastai
-pypdl
+torch
+boto3
+progress
+transformers
+ipykernel
