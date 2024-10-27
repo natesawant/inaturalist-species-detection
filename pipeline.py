@@ -1,8 +1,7 @@
-from pathlib import Path
+import argparse
 
 import torch
 import torch.optim as optim
-import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torch import nn
 from torch.utils.data import DataLoader
@@ -10,29 +9,29 @@ from torch.utils.data import DataLoader
 from convolutional_neural_network import ConvolutionalNeuralNetwork
 from visual_transformer import VisualTransformer
 
-import inaturalist
+from inaturalist import FISH_CLASSES, iNaturalistDataset
 
 
 class Pipeline:
     def __init__(
         self,
         batch_size: int,
-        num_classes: int,
         learning_rate: float,
         num_epochs: int,
     ):
         self.batch_size = batch_size
-        self.num_classes = num_classes
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
+        if not torch.cuda.is_available():
+            print("WARNING: Using CPU instead of GPU")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def start_pipeline(self):
-        self.data_setup()
+    def start_pipeline(self, download=False, classes=FISH_CLASSES):
+        self.data_setup(download, classes)
         self.train()
         self.evaluate()
 
-    def data_setup(self):
+    def data_setup(self, download, classes):
         all_transforms = transforms.Compose(
             [
                 transforms.Resize((32, 32)),
@@ -43,18 +42,18 @@ class Pipeline:
             ]
         )
 
-        train = inaturalist.iNaturalistDataset(
+        train = iNaturalistDataset(
             root="./data",
             train=True,
-            download=False,
-            classes=["Elasmobranchii"],  # inaturalist.FISH_CLASSES,
+            download=download,
+            classes=classes,
             transform=all_transforms,
         )
-        test = inaturalist.iNaturalistDataset(
+        test = iNaturalistDataset(
             root="./data",
             train=False,
-            download=False,
-            classes=["Elasmobranchii"],  # inaturalist.FISH_CLASSES,
+            download=download,
+            classes=classes,
             transform=all_transforms,
         )
 
@@ -64,6 +63,9 @@ class Pipeline:
         self.test_dataloader = DataLoader(
             test, batch_size=self.batch_size, shuffle=True
         )
+
+        assert set(train.classes) == set(test.classes)
+        self.num_classes = len(train.classes)
 
     def train(self):
         for epoch in range(self.num_epochs):
@@ -90,7 +92,7 @@ class Pipeline:
         with torch.no_grad():
             correct = 0
             total = 0
-            for images, labels in self.train_dataloader:
+            for images, labels in self.test_dataloader:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)
@@ -99,8 +101,8 @@ class Pipeline:
                 correct += (predicted == labels).sum().item()
 
             print(
-                "Accuracy of the network on the {} train images: {} %".format(
-                    len(self.train_dataloader), 100 * correct / total
+                "Accuracy of the network on the {} test images: {} %".format(
+                    len(self.test_dataloader), 100 * correct / total
                 )
             )
 
@@ -109,10 +111,11 @@ class Pipeline:
 
 
 class CNNPipeline(Pipeline):
-    def __init__(self, **kwargs):
+
+    def __init__(self, image_size=32, **kwargs):
         self.all_transforms = transforms.Compose(
             [
-                transforms.Resize((32, 32)),
+                transforms.Resize((image_size, image_size)),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]
@@ -153,8 +156,35 @@ class ViTPipeline(Pipeline):
         return super().train()
 
 
-if __name__ == "__main__":
-    pipeline = CNNPipeline(
-        batch_size=64, num_classes=16, learning_rate=0.001, num_epochs=20
+def parse_args():
+    parser = argparse.ArgumentParser(description="Process some arguments.")
+
+    # Boolean argument for "download"
+    parser.add_argument(
+        "--download", action="store_true", help="Flag to initiate download"
     )
-    pipeline.start_pipeline()
+
+    # String list argument for "classes"
+    parser.add_argument("--classes", type=str, nargs="+", help="List of class names")
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    return args.download, args.classes
+
+
+if __name__ == "__main__":
+    download, classes = parse_args()
+    image_size = 32
+    batch_size = 64
+    learning_rate = 0.001
+    num_epochs = 20
+
+    pipeline = CNNPipeline(
+        image_size=image_size,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        num_epochs=num_epochs,
+    )
+
+    pipeline.start_pipeline(download=download, classes=classes)

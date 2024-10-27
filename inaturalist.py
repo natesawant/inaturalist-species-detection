@@ -80,15 +80,10 @@ class iNaturalistDataset(VisionDataset):
             annotations = pd.DataFrame.from_dict(data["annotations"])
             annotations = annotations.set_index(keys="id")
             annotations = annotations[annotations["category_id"].isin(cids)]
-            annotations = annotations.reset_index()
 
-            images = pd.DataFrame.from_dict(data["images"])
-            images = images.rename(columns={"id": "image_id"})
+            images = pd.DataFrame.from_dict(data["images"]).set_index("id")
 
-            annotations = annotations.join(
-                images, on="image_id", how="left", lsuffix="_left", rsuffix="_right"
-            )
-            annotations = annotations.set_index("image_id")
+            annotations = annotations.set_index("image_id").join(images)
             annotations = annotations[["category_id", "width", "height", "file_name"]]
 
             annotations = annotations.join(
@@ -100,6 +95,8 @@ class iNaturalistDataset(VisionDataset):
             )
 
             annotations = annotations.reset_index()
+
+            self.classes = annotations["common_name"].unique()
 
             return annotations
 
