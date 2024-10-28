@@ -1,5 +1,8 @@
 import argparse
+import csv
 from pathlib import Path
+
+from progress.bar import Bar
 
 import torch
 import torch.optim as optim
@@ -40,7 +43,8 @@ class Pipeline:
             self.epoch = checkpoint["epoch"]
             self.loss = checkpoint["loss"]
         else:
-            Path("models").mkdir()
+            if not Path("models").exists():
+                Path("models").mkdir()
             print("Training model from scratch")
             self.epoch = 0
 
@@ -87,40 +91,41 @@ class Pipeline:
         self.num_classes = len(train.classes)
 
     def train(self):
-        start_epoch = self.epoch
-        for epoch in range(start_epoch, self.num_epochs):
-            self.epoch = epoch
-            for step, (images, labels) in enumerate(self.train_dataloader):
-                images = images.to(self.device)
-                labels = labels.to(self.device)
+        with open("train.csv", mode="a", newline="") as file:
+            writer = csv.writer(file)
 
-                # Forward pass
-                outputs = self.model(images)
-                self.loss = self.criterion(outputs, labels)
+            start_epoch = self.epoch
+            with Bar("Training", max=self.num_epochs - start_epoch) as bar:
+                for epoch in range(start_epoch, self.num_epochs):
+                    self.epoch = epoch
+                    for step, (images, labels) in enumerate(self.train_dataloader):
+                        images = images.to(self.device)
+                        labels = labels.to(self.device)
 
-                # Backward and optimize
-                self.optimizer.zero_grad()
-                self.loss.backward()
-                self.optimizer.step()
+                        # Forward pass
+                        outputs = self.model(images)
+                        self.loss = self.criterion(outputs, labels)
 
-            print(
-                "Epoch [{}/{}], Loss: {:.4f}".format(
-                    epoch + 1, self.num_epochs, self.loss.item()
-                )
-            )
+                        # Backward and optimize
+                        self.optimizer.zero_grad()
+                        self.loss.backward()
+                        self.optimizer.step()
 
-            torch.save(
-                {
-                    "epoch": self.epoch,
-                    "model_state_dict": self.model.state_dict(),
-                    "optimizer_state_dict": self.optimizer.state_dict(),
-                    "loss": self.loss,
-                },
-                self.path,
-            )
+                    torch.save(
+                        {
+                            "epoch": self.epoch,
+                            "model_state_dict": self.model.state_dict(),
+                            "optimizer_state_dict": self.optimizer.state_dict(),
+                            "loss": self.loss,
+                        },
+                        self.path,
+                    )
 
-            if epoch % 10 == 0:
-                self.evaluate()
+                    loss = self.loss.item()
+                    top1, topk = self.evaluate()
+
+                    writer.writerow([epoch, loss, top1, topk])
+                    bar.next()
 
     def evaluate(self):
         with torch.no_grad():
@@ -139,16 +144,10 @@ class Pipeline:
                 )
                 correct_top_1 += (predicted == labels).sum().item()
 
-            print(
-                "Top-1 Accuracy of the network on the {} test images: {} %".format(
-                    len(self.test_dataloader), 100 * correct_top_1 / total
-                )
-            )
-            print(
-                "Top-{} Accuracy of the network on the {} test images: {} %".format(
-                    self.k, len(self.test_dataloader), 100 * correct_top_k / total
-                )
-            )
+            top1 = 100 * correct_top_1 / total
+            topk = 100 * correct_top_k / total
+
+            return top1, topk
 
     def predict(self):
         raise NotImplementedError()
@@ -228,10 +227,10 @@ def parse_args():
 
 if __name__ == "__main__":
     download, classes = parse_args()
-    image_size = 32
+    image_size = 256
     batch_size = 64
     learning_rate = 0.001
-    num_epochs = 100
+    num_epochs = 20
 
     pipeline = CNNPipeline(
         image_size=image_size,
