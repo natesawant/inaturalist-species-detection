@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import torch
 import torch.optim as optim
@@ -24,12 +25,28 @@ class Pipeline:
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
         self.k = top_k
+        self.path = Path("models") / "model.pt"
+
         if not torch.cuda.is_available():
             print("WARNING: Using CPU instead of GPU")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    def load_model(self):
+        if self.path.exists():
+            print("Loading model from", self.path)
+            checkpoint = torch.load(self.path, weights_only=True)
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.epoch = checkpoint["epoch"]
+            self.loss = checkpoint["loss"]
+        else:
+            Path("models").mkdir()
+            print("Training model from scratch")
+            self.epoch = 0
+
     def start_pipeline(self, download=False, classes=FISH_CLASSES):
         self.data_setup(download, classes)
+        self.load_model()
         self.train()
         self.evaluate()
 
@@ -70,24 +87,36 @@ class Pipeline:
         self.num_classes = len(train.classes)
 
     def train(self):
-        for epoch in range(self.num_epochs):
+        start_epoch = self.epoch
+        for epoch in range(start_epoch, self.num_epochs):
+            self.epoch = epoch
             for step, (images, labels) in enumerate(self.train_dataloader):
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
                 # Forward pass
                 outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
+                self.loss = self.criterion(outputs, labels)
 
                 # Backward and optimize
                 self.optimizer.zero_grad()
-                loss.backward()
+                self.loss.backward()
                 self.optimizer.step()
 
             print(
                 "Epoch [{}/{}], Loss: {:.4f}".format(
-                    epoch + 1, self.num_epochs, loss.item()
+                    epoch + 1, self.num_epochs, self.loss.item()
                 )
+            )
+
+            torch.save(
+                {
+                    "epoch": self.epoch,
+                    "model_state_dict": self.model.state_dict(),
+                    "optimizer_state_dict": self.optimizer.state_dict(),
+                    "loss": self.loss,
+                },
+                self.path,
             )
 
             if epoch % 10 == 0:
@@ -139,7 +168,7 @@ class CNNPipeline(Pipeline):
         )
         super().__init__(**kwargs)
 
-    def train(self):
+    def load_model(self):
         self.model = ConvolutionalNeuralNetwork(self.num_classes)
         # Set Loss function with criterion
         self.criterion = nn.CrossEntropyLoss()
@@ -150,6 +179,9 @@ class CNNPipeline(Pipeline):
             weight_decay=0.005,
             momentum=0.9,
         )
+        super().load_model()
+
+    def train(self):
         self.model = self.model.to(self.device)
         return super().train()
 
@@ -199,7 +231,7 @@ if __name__ == "__main__":
     image_size = 32
     batch_size = 64
     learning_rate = 0.001
-    num_epochs = 20
+    num_epochs = 100
 
     pipeline = CNNPipeline(
         image_size=image_size,
