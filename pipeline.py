@@ -90,6 +90,9 @@ class Pipeline:
                 )
             )
 
+            if epoch % 10 == 0:
+                self.evaluate()
+
     def evaluate(self):
         with torch.no_grad():
             correct_top_1 = 0
