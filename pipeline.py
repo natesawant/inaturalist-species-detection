@@ -18,10 +18,12 @@ class Pipeline:
         batch_size: int,
         learning_rate: float,
         num_epochs: int,
+        top_k: int = 5,
     ):
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
+        self.k = top_k
         if not torch.cuda.is_available():
             print("WARNING: Using CPU instead of GPU")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -90,19 +92,29 @@ class Pipeline:
 
     def evaluate(self):
         with torch.no_grad():
-            correct = 0
+            correct_top_1 = 0
+            correct_top_k = 0
             total = 0
             for images, labels in self.test_dataloader:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)
+                _, predictions = torch.topk(outputs.data, k=self.k, dim=1, largest=True)
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                correct_top_k += (
+                    (predictions == labels.view(-1, 1)).any(dim=1).sum().item()
+                )
+                correct_top_1 += (predicted == labels).sum().item()
 
             print(
-                "Accuracy of the network on the {} test images: {} %".format(
-                    len(self.test_dataloader), 100 * correct / total
+                "Top-1 Accuracy of the network on the {} test images: {} %".format(
+                    len(self.test_dataloader), 100 * correct_top_1 / total
+                )
+            )
+            print(
+                "Top-{} Accuracy of the network on the {} test images: {} %".format(
+                    self.k, len(self.test_dataloader), 100 * correct_top_k / total
                 )
             )
 
