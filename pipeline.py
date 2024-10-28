@@ -180,7 +180,13 @@ def parse_args():
     )
 
     # String list argument for "classes"
-    parser.add_argument("--classes", type=str, nargs="+", help="List of class names")
+    parser.add_argument(
+        "--classes",
+        type=str,
+        nargs="+",
+        help="List of class names",
+        default=FISH_CLASSES,
+    )
 
     # Parse the arguments
     args = parser.parse_args()
