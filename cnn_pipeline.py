@@ -8,7 +8,7 @@ from pipeline import Pipeline
 
 class CNNPipeline(Pipeline):
     def load_model(self):
-        self.model = ConvolutionalNeuralNetwork(self.num_classes)
+        self.model = ConvolutionalNeuralNetwork(self.num_classes, self.image_size)
         # Set Loss function with criterion
         self.criterion = nn.CrossEntropyLoss()
         # Set optimizer with optimizer

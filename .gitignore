@@ -2,6 +2,7 @@
 data*/
 models/
 tmp/
+*.csv
 
 */_tmp.pth
 
