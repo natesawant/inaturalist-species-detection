@@ -1,17 +1,11 @@
-import argparse
 import csv
 from pathlib import Path
 
 from progress.bar import Bar
 
 import torch
-import torch.optim as optim
 import torchvision.transforms as transforms
-from torch import nn
 from torch.utils.data import DataLoader
-
-from convolutional_neural_network import ConvolutionalNeuralNetwork
-from visual_transformer import VisualTransformer
 
 from inaturalist import FISH_CLASSES, iNaturalistDataset
 
@@ -28,13 +22,14 @@ class Pipeline:
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
         self.k = top_k
-        self.path = Path("models") / "model.pt"
 
         if not torch.cuda.is_available():
             print("WARNING: Using CPU instead of GPU")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def load_model(self):
+        self.path = Path("models") / f"model_{self.job_id}.pt"
+
         if self.path.exists():
             print("Loading model from", self.path)
             checkpoint = torch.load(self.path, weights_only=True)
@@ -48,7 +43,9 @@ class Pipeline:
             print("Training model from scratch")
             self.epoch = 0
 
-    def start_pipeline(self, download=False, classes=FISH_CLASSES):
+    def start_pipeline(self, job_id, download=False, classes=FISH_CLASSES):
+        self.job_id = job_id
+
         self.data_setup(download, classes)
         self.load_model()
         self.train()
@@ -91,7 +88,7 @@ class Pipeline:
         self.num_classes = len(train.classes)
 
     def train(self):
-        with open("train.csv", mode="a", newline="") as file:
+        with open(f"train_{self.job_id}.csv", mode="a", newline="") as file:
             writer = csv.writer(file)
 
             start_epoch = self.epoch
@@ -152,91 +149,3 @@ class Pipeline:
     def predict(self):
         raise NotImplementedError()
 
-
-class CNNPipeline(Pipeline):
-
-    def __init__(self, image_size=32, **kwargs):
-        self.all_transforms = transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]
-                ),
-            ]
-        )
-        super().__init__(**kwargs)
-
-    def load_model(self):
-        self.model = ConvolutionalNeuralNetwork(self.num_classes)
-        # Set Loss function with criterion
-        self.criterion = nn.CrossEntropyLoss()
-        # Set optimizer with optimizer
-        self.optimizer = torch.optim.SGD(
-            self.model.parameters(),
-            lr=self.learning_rate,
-            weight_decay=0.005,
-            momentum=0.9,
-        )
-        super().load_model()
-
-    def train(self):
-        self.model = self.model.to(self.device)
-        return super().train()
-
-
-class ViTPipeline(Pipeline):
-    def __init__(self, **kwargs):
-        self.all_transforms = transforms.Compose(
-            [
-                transforms.Resize((32, 32)),  # Maybe should be 144, 144
-                transforms.ToTensor(),
-            ]
-        )
-        super().__init__(**kwargs)
-
-    def train(self):
-        self.model = VisualTransformer().to(self.device)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=self.learning_rate)
-        return super().train()
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Process some arguments.")
-
-    # Boolean argument for "download"
-    parser.add_argument(
-        "--download", action="store_true", help="Flag to initiate download"
-    )
-
-    # String list argument for "classes"
-    parser.add_argument(
-        "--classes",
-        type=str,
-        nargs="+",
-        help="List of class names",
-        default=FISH_CLASSES,
-    )
-
-    # Parse the arguments
-    args = parser.parse_args()
-
-    return args.download, args.classes
-
-
-if __name__ == "__main__":
-    download, classes = parse_args()
-    image_size = 256
-    batch_size = 64
-    learning_rate = 0.001
-    num_epochs = 20
-
-    pipeline = CNNPipeline(
-        image_size=image_size,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        num_epochs=num_epochs,
-    )
-
-    pipeline.start_pipeline(download=download, classes=classes)
