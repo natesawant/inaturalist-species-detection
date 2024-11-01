@@ -7,19 +7,6 @@ from convolutional_neural_network import ConvolutionalNeuralNetwork
 from pipeline import Pipeline
 
 class CNNPipeline(Pipeline):
-
-    def __init__(self, image_size=32, **kwargs):
-        self.all_transforms = transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]
-                ),
-            ]
-        )
-        super().__init__(**kwargs)
-
     def load_model(self):
         self.model = ConvolutionalNeuralNetwork(self.num_classes)
         # Set Loss function with criterion

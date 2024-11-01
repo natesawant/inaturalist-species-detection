@@ -13,11 +13,13 @@ from inaturalist import FISH_CLASSES, iNaturalistDataset
 class Pipeline:
     def __init__(
         self,
+        image_size: int,
         batch_size: int,
         learning_rate: float,
         num_epochs: int,
-        top_k: int = 5,
+        top_k: int,
     ):
+        self.image_size = image_size
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
@@ -52,9 +54,11 @@ class Pipeline:
         self.evaluate()
 
     def data_setup(self, download, classes):
-        all_transforms = transforms.Compose(
+        self.all_transforms = transforms.Compose(
             [
-                transforms.Resize((32, 32)),
+                transforms.Resize((self.image_size, self.image_size)),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]
@@ -67,14 +71,14 @@ class Pipeline:
             train=True,
             download=download,
             classes=classes,
-            transform=all_transforms,
+            transform=self.all_transforms,
         )
         test = iNaturalistDataset(
             root="./data",
             train=False,
             download=download,
             classes=classes,
-            transform=all_transforms,
+            transform=self.all_transforms,
         )
 
         self.train_dataloader = DataLoader(
