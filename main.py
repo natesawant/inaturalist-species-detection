@@ -1,7 +1,9 @@
 import argparse
 
+from efficient_pipeline import EfficientNetPipeline
 from inaturalist import FISH_CLASSES
 from cnn_pipeline import CNNPipeline
+from vit_pipeline import ViTPipeline
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Process some arguments.")
@@ -62,21 +64,38 @@ def parse_args():
         default="latest",
     )
 
+    parser.add_argument(
+        "--model",
+        type=str,
+        help="Model to use (cnn, efficient, vit)",
+        default="cnn",
+    )
+
     # Parse the arguments
     args = parser.parse_args()
 
-    return args.download, args.classes, args.image_size, args.batch_size, args.learning_rate, args.num_epochs, args.top_k, args.job_id
+    return args.download, args.classes, args.image_size, args.batch_size, args.learning_rate, args.num_epochs, args.top_k, args.job_id, args.model
 
 
 if __name__ == "__main__":
-    download, classes, image_size, batch_size, learning_rate, num_epochs, top_k, job_id = parse_args()
+    download, classes, image_size, batch_size, learning_rate, num_epochs, top_k, job_id, model = parse_args()
 
-    pipeline = CNNPipeline(
-        image_size=image_size,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        num_epochs=num_epochs,
-        top_k=top_k,
-    )
+    models = {"cnn": CNNPipeline,
+              "efficient": EfficientNetPipeline,
+              "vit": ViTPipeline}
+    
+    model_pipeline = models.get(model)
+
+    if not model_pipeline:
+        print("Invalid model option")
+        exit(1)
+
+    pipeline = model_pipeline(
+                image_size=image_size,
+                batch_size=batch_size,
+                learning_rate=learning_rate,
+                num_epochs=num_epochs,
+                top_k=top_k,
+            )
 
     pipeline.start_pipeline(job_id, download=download, classes=classes)
