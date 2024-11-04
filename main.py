@@ -1,4 +1,5 @@
 import argparse
+import time
 
 from efficient_pipeline import EfficientNetPipeline
 from inaturalist import FISH_CLASSES
@@ -98,4 +99,12 @@ if __name__ == "__main__":
                 top_k=top_k,
             )
 
+    start = time.time()
+
     pipeline.start_pipeline(job_id, download=download, classes=classes)
+
+    time_elapsed = time.time() - start
+
+    time_formatted = time.strftime("%H:%M:%S", time.gmtime(time_elapsed))
+
+    print(f"Total time elapsed: {time_formatted}")
