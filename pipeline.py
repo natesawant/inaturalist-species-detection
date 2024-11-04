@@ -25,9 +25,15 @@ class Pipeline:
         self.num_epochs = num_epochs
         self.k = top_k
 
-        if not torch.cuda.is_available():
-            print("WARNING: Using CPU instead of GPU")
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            print("INFO: Using CUDA architecture")
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            print("INFO: Using MPS architecture")
+            self.device = torch.device("mps")
+        else:
+            print("WARNING: Using CPU architecture")
+            self.device = torch.device("cpu")
 
     def load_model(self):
         self.path = Path("models") / f"model_{self.job_id}.pt"
@@ -36,6 +42,7 @@ class Pipeline:
             print("Loading model from", self.path)
             checkpoint = torch.load(self.path, weights_only=True)
             self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.model.to(self.device)
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.epoch = checkpoint["epoch"]
             self.loss = checkpoint["loss"]
