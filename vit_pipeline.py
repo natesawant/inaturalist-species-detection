@@ -16,8 +16,12 @@ class ViTPipeline(Pipeline):
         )
         super().__init__(**kwargs)
 
-    def train(self):
-        self.model = VisualTransformer().to(self.device)
+    def load_model(self):
+        self.model = VisualTransformer(self.num_classes)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(self.model.parameters(), lr=self.learning_rate)
+        super().load_model()
+
+    def train(self):
+        self.model = self.model.to(self.device)
         return super().train()

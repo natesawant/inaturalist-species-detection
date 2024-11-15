@@ -7,6 +7,8 @@ import torch
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
+from PIL import Image
+
 from inaturalist import FISH_CLASSES, iNaturalistDataset
 
 
@@ -18,12 +20,16 @@ class Pipeline:
         learning_rate: float,
         num_epochs: int,
         top_k: int,
+        model_type: str,
     ):
         self.image_size = image_size
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.num_epochs = num_epochs
         self.k = top_k
+        self.model_type = model_type
+
+        self.best_accuracy = None
 
         if torch.cuda.is_available():
             print("INFO: Using CUDA architecture")
@@ -36,7 +42,7 @@ class Pipeline:
             self.device = torch.device("cpu")
 
     def load_model(self):
-        self.path = Path("models") / f"model_{self.job_id}.pt"
+        self.path = Path("models") / f"model_{self.model_type}_{self.job_id}.pt"
 
         if self.path.exists():
             print("Loading model from", self.path)
@@ -99,7 +105,7 @@ class Pipeline:
         self.num_classes = len(train.classes)
 
     def train(self):
-        with open(f"train_{self.job_id}.csv", mode="a", newline="") as file:
+        with open(f"train_{self.model_type}_{self.job_id}.csv", mode="a", newline="") as file:
             writer = csv.writer(file)
 
             start_epoch = self.epoch
@@ -119,18 +125,33 @@ class Pipeline:
                         self.loss.backward()
                         self.optimizer.step()
 
-                    torch.save(
-                        {
-                            "epoch": self.epoch,
-                            "model_state_dict": self.model.state_dict(),
-                            "optimizer_state_dict": self.optimizer.state_dict(),
-                            "loss": self.loss,
-                        },
-                        self.path,
-                    )
-
                     loss = self.loss.item()
                     top1, topk = self.evaluate()
+
+                    # Only save model if performance is better than previously seen
+                    if self.best_accuracy:
+                        prev_top1, prev_topk = self.best_accuracy
+                        if top1 > prev_top1 or (top1 == prev_top1 and topk > prev_topk):
+                            torch.save(
+                                {
+                                    "epoch": self.epoch,
+                                    "model_state_dict": self.model.state_dict(),
+                                    "optimizer_state_dict": self.optimizer.state_dict(),
+                                    "loss": self.loss,
+                                },
+                                self.path,
+                            )
+                    else:
+                        self.best_accuracy = (top1, topk)
+                        torch.save(
+                            {
+                                "epoch": self.epoch,
+                                "model_state_dict": self.model.state_dict(),
+                                "optimizer_state_dict": self.optimizer.state_dict(),
+                                "loss": self.loss,
+                            },
+                            self.path,
+                        )
 
                     writer.writerow([epoch, loss, top1, topk])
                     bar.next()
@@ -157,6 +178,13 @@ class Pipeline:
 
             return top1, topk
 
-    def predict(self):
-        raise NotImplementedError()
+    def predict(self, img_path):
+        image = Image.open(img_path)
 
+        image = self.all_transforms(image)
+
+        image = image.to(self.device)
+
+        output = self.model(image)
+
+        return output

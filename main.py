@@ -97,6 +97,7 @@ if __name__ == "__main__":
                 learning_rate=learning_rate,
                 num_epochs=num_epochs,
                 top_k=top_k,
+                model_type=model
             )
 
     start = time.time()

@@ -1,9 +1,11 @@
 from torch import nn
+from torchvision import models
 
 
 class VisualTransformer(nn.Module):
     def __init__(
         self,
+        num_classes,
         ch=3,
         img_size=144,
         patch_size=4,
@@ -15,5 +17,15 @@ class VisualTransformer(nn.Module):
     ):
         super(VisualTransformer, self).__init__()
 
+        self.model = models.vision_transformer.vit_b_16(weights="IMAGENET1K_V1")
+
+        # Freeze all layers except the final classification layer
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        # Replace the final classification layer
+        num_ftrs = self.model.heads.head.in_features
+        self.model.heads.head = nn.Linear(num_ftrs, num_classes)
+
     def forward(self, img):
-        raise NotImplementedError()
+        return self.model.forward(img)
