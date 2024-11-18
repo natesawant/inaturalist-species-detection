@@ -21,6 +21,7 @@ class Pipeline:
         num_epochs: int,
         top_k: int,
         model_type: str,
+        classes: str,
     ):
         self.image_size = image_size
         self.batch_size = batch_size
@@ -28,6 +29,7 @@ class Pipeline:
         self.num_epochs = num_epochs
         self.k = top_k
         self.model_type = model_type
+        self.classes = "fish" if classes == FISH_CLASSES else classes[0].lower()
 
         self.best_accuracy = None
 
@@ -42,7 +44,7 @@ class Pipeline:
             self.device = torch.device("cpu")
 
     def load_model(self):
-        self.path = Path("models") / f"model_{self.model_type}_{self.job_id}.pt"
+        self.path = Path("models") / f"model_{self.model_type}_{self.classes}_{self.job_id}.pt"
 
         if self.path.exists():
             print("Loading model from", self.path)
@@ -105,7 +107,7 @@ class Pipeline:
         self.num_classes = len(train.classes)
 
     def train(self):
-        with open(f"train_{self.model_type}_{self.job_id}.csv", mode="a", newline="") as file:
+        with open(f"train_{self.model_type}_{self.classes}_{self.job_id}.csv", mode="a", newline="") as file:
             writer = csv.writer(file)
 
             start_epoch = self.epoch
