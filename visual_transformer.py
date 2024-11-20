@@ -20,7 +20,7 @@ class VisualTransformer(nn.Module):
 
         # self.model = ViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
 
-        self.model = models.vision_transformer.vit_h_14(weights=models.vision_transformer.ViT_H_14_Weights.IMAGENET1K_SWAG_E2E_V1)
+        self.model = models.vision_transformer.vit_l_16(weights=models.vision_transformer.ViT_L_16_Weights.DEFAULT)
 
         # Freeze all layers except the final classification layer
         for param in self.model.parameters():
