@@ -48,7 +48,7 @@ class Pipeline:
 
         if self.path.exists():
             print("Loading model from", self.path)
-            checkpoint = torch.load(self.path, weights_only=True)
+            checkpoint = torch.load(self.path, weights_only=True, map_location=self.device)
             self.model.load_state_dict(checkpoint["model_state_dict"])
             self.model.to(self.device)
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -181,12 +181,16 @@ class Pipeline:
             return top1, topk
 
     def predict(self, img_path):
+        """
+        Returns the index of the class, requires a conversion to get the species name
+        """
         image = Image.open(img_path)
 
         image = self.all_transforms(image)
 
         image = image.to(self.device)
 
-        output = self.model(image)
+        output = self.model(image.unsqueeze(0))
+        _, predicted = torch.max(output.data, 1)
 
-        return output
+        return predicted.tolist()[0]
