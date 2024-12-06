@@ -64,41 +64,60 @@ class iNaturalistDataset(VisionDataset):
         self.annotations = self.compile_annotations(classes, train)
 
     def compile_annotations(self, classes, train):
+        compiled_annotations = DATA_DIR / ("train.csv" if train else "val.csv")
+        if compiled_annotations.exists():
+            annotations = pd.read_csv(compiled_annotations)
+            self.classes = annotations["common_name"].unique()
+            with open(DATA_DIR / f'{"train" if train else "test"}_order.json', encoding='utf-8') as f:
+                self.id_to_order = json.load(f)
+            
+            return annotations
+        
+        print("recompiling annotations to", compiled_annotations)
+        
         with open(DATA_DIR / ("train.json" if train else "val.json")) as f:
             data = json.load(f)
 
-            categories = pd.DataFrame.from_dict(data["categories"])
-            categories = categories[categories["class"].isin(classes)]
-            categories = categories.reset_index()
+        categories = pd.DataFrame.from_dict(data["categories"])
+        categories = categories[categories["class"].isin(classes)]
+        categories = categories.reset_index()
 
-            cids = categories["id"]
+        cids = categories["id"]
 
-            categories["order"] = categories.index
-            categories = categories.set_index("id")
-            self.id_to_order = categories["order"].to_dict()
+        categories["order"] = categories.index
+        categories = categories.set_index("id")
+        self.id_to_order = categories["order"].to_dict()
+        
+        with open(DATA_DIR / f'{"train" if train else "test"}_order.json', 'w', encoding='utf-8') as f:
+            json.dump(self.id_to_order, f, ensure_ascii=False, indent=4)
 
-            annotations = pd.DataFrame.from_dict(data["annotations"])
-            annotations = annotations.set_index(keys="id")
-            annotations = annotations[annotations["category_id"].isin(cids)]
+        annotations = pd.DataFrame.from_dict(data["annotations"])
+        annotations = annotations.set_index(keys="id")
+        annotations = annotations[annotations["category_id"].isin(cids)]
 
-            images = pd.DataFrame.from_dict(data["images"]).set_index("id")
+        images = pd.DataFrame.from_dict(data["images"]).set_index("id")
 
-            annotations = annotations.set_index("image_id").join(images)
-            annotations = annotations[["category_id", "width", "height", "file_name"]]
+        annotations = annotations.set_index("image_id").join(images)
+        annotations = annotations[["category_id", "width", "height", "file_name"]]
 
-            annotations = annotations.join(
-                categories,
-                on="category_id",
-                how="left",
-                lsuffix="_left",
-                rsuffix="_right",
-            )
+        annotations = annotations.join(
+            categories,
+            on="category_id",
+            how="left",
+            lsuffix="_left",
+            rsuffix="_right",
+        )
 
-            annotations = annotations.reset_index()
+        annotations = annotations.reset_index()
+        
+        annotations.to_csv(compiled_annotations)
 
-            self.classes = annotations["common_name"].unique()
+        self.classes = annotations["common_name"].unique()
+        
+        with open(DATA_DIR / f'{"train" if train else "test"}_order.json', encoding='utf-8') as f:
+                self.id_to_order = json.load(f)
 
-            return annotations
+        return annotations
 
     def __len__(self) -> int:
         return len(self.annotations)
@@ -106,7 +125,7 @@ class iNaturalistDataset(VisionDataset):
     def __getitem__(self, idx: int) -> Any:
         img_path = os.path.join(DATA_DIR, self.annotations["file_name"][idx])
         image = Image.open(img_path)
-        label = self.id_to_order[self.annotations["category_id"][idx]]
+        label = self.id_to_order[str(self.annotations["category_id"][idx].item())]
         if self.transform:
             image = self.transform(image)
         if self.target_transform:
